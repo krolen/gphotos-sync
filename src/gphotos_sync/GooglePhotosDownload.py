@@ -301,7 +301,7 @@ class GooglePhotosDownload(object):
                 )
                 win32file.SetFileTime(file_handle, *(create_date,) * 3)
                 file_handle.close()
-            os.chmod(str(local_full_path), 0o666 & ~self.current_umask)
+            # os.chmod(str(local_full_path), 0o666 & ~self.current_umask)
         except KeyboardInterrupt:
             log.debug("User cancelled download thread")
             raise
