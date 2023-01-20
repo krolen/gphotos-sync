@@ -1,0 +1,12 @@
+requests~=2.28.1
+urllib3~=1.26.13
+
+attrs
+exif
+appdirs
+requests_oauthlib
+pyyaml>=4.2b1
+types-PyYAML
+psutil
+google-auth-oauthlib==0.8.0
+types-requests
