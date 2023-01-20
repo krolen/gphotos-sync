@@ -34,18 +34,9 @@ class TestErrors(TestCase):
       etc.
     """
 
-    @patch(
-        "gphotos_sync.authorize.InstalledAppFlow.run_local_server",
-        return_value="dummy_response_string",
-    )
-    @patch(
-        "gphotos_sync.authorize.InstalledAppFlow.authorized_session",
-        return_value="dummy_seaaion",
-    )
-    def test_authorize(self, local_server, authorized_session):
+    def test_authorize(self):
         scope = [
             "https://www.googleapis.com/auth/photoslibrary.readonly",
-            "https://www.googleapis.com/auth/photoslibrary.sharing",
         ]
 
         bad_file: Path = (
@@ -53,23 +44,15 @@ class TestErrors(TestCase):
             / "test_credentials"
             / ".no-token-here"
         )
-        secrets_file: Path = (
-            Path(__file__).absolute().parent.parent
-            / "test_credentials"
-            / "client_secret.json"
-        )
-        # test_data: Path = Path(__file__).absolute().parent.parent / 'test-data'
-        # token_file: Path = Path(__file__).absolute().parent.parent / \
-        #     'test_credentials' / '.gphotos.token'
 
         if bad_file.exists():
             bad_file.unlink()
         with pytest.raises(SystemExit) as test_wrapped_e:
-            a = auth.Authorize(scope, bad_file, bad_file)
+            a = auth.Authorize(scope, bad_file)
         assert test_wrapped_e.type == SystemExit
 
-        a = auth.Authorize(scope, bad_file, secrets_file)
-        res = a.load_token()
+        a = auth.Authorize(scope, bad_file)
+        res = a.load_creds()
         assert res is None
 
     def test_base_media(self):

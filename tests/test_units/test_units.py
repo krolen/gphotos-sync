@@ -20,21 +20,19 @@ is_travis = "TRAVIS" in environ
 
 scope = [
     "https://www.googleapis.com/auth/photoslibrary.readonly",
-    "https://www.googleapis.com/auth/photoslibrary.sharing",
 ]
 
 token_file = (
     Path(__file__).absolute().parent.parent / "test_credentials" / ".gphotos.token"
 )
-secrets_file = (
-    Path(__file__).absolute().parent.parent / "test_credentials" / "client_secret.json"
-)
+
 test_data = Path(__file__).absolute().parent.parent / "test-data"
 
 
 class TestUnits(TestCase):
+
     def test_http_500_retries(self):
-        a = auth.Authorize(scope, token_file, secrets_file)
+        a = auth.Authorize(scope, token_file)
         a.authorize()
 
         # speed up error checking by reducing backoff factor
@@ -60,7 +58,7 @@ class TestUnits(TestCase):
         a.session.close()
 
     def test_download_timeout(self):
-        a = auth.Authorize(scope, token_file, secrets_file)
+        a = auth.Authorize(scope, token_file)
         a.authorize()
         retry_error = False
         start = datetime.now()

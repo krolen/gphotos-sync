@@ -303,6 +303,10 @@ class GooglePhotosSyncMain:
         type=int,
         default=8080,
     )
+    parser.add_argument(
+        "--db_path",
+        help="Database storage path"
+    )
     parser.add_help = True
 
     def setup(self, args: Namespace, db_path: Path):
@@ -325,7 +329,7 @@ class GooglePhotosSyncMain:
 
         scope = [
             "https://www.googleapis.com/auth/photoslibrary.readonly",
-            "https://www.googleapis.com/auth/photoslibrary.sharing",
+            # "https://www.googleapis.com/auth/photoslibrary.sharing",
         ]
         photos_api_url = (
             "https://photoslibrary.googleapis.com/$discovery" "/rest?version=v1"
@@ -334,9 +338,7 @@ class GooglePhotosSyncMain:
         self.auth = Authorize(
             scope,
             credentials_file,
-            secret_file,
             int(args.max_retries),
-            port=args.port,
         )
         self.auth.authorize()
 
@@ -465,7 +467,8 @@ class GooglePhotosSyncMain:
                 exit(1)
 
         root_folder = Path(args.root_folder).absolute()
-        db_path = Path(args.db_path) if args.db_path else root_folder
+        db_path = Path(os.path.abspath(args.db_path)) if args.db_path else root_folder
+        # db_path = Path(args.db_path) if args.db_path else root_folder
         if not root_folder.exists():
             root_folder.mkdir(parents=True, mode=0o700)
 
@@ -507,3 +510,7 @@ class GooglePhotosSyncMain:
 
 def main():
     GooglePhotosSyncMain().main()
+
+
+if __name__ == "__main__":
+    main()

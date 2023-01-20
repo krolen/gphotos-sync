@@ -3,27 +3,21 @@ from json import JSONDecodeError, dump, load
 from pathlib import Path
 from typing import List, Optional
 
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
+
 from requests.adapters import HTTPAdapter
 from requests_oauthlib import OAuth2Session
 from urllib3.util.retry import Retry
 
 log = logging.getLogger(__name__)
 
-
-# OAuth endpoints given in the Google API documentation
-authorization_base_url = "https://accounts.google.com/o/oauth2/v2/auth"
-token_uri = "https://www.googleapis.com/oauth2/v4/token"
-
-
 class Authorize:
     def __init__(
-        self,
-        scope: List[str],
-        token_file: Path,
-        secrets_file: Path,
-        max_retries: int = 5,
-        port: int = 8080,
+            self,
+            scope: List[str],
+            token_file: Path,
+            max_retries: int = 5
     ):
         """A very simple class to handle Google API authorization flow
         for the requests library. Includes saving the token and automatic
@@ -34,80 +28,58 @@ class Authorize:
             token_file: full path of a file in which the user token will be
             placed. After first use the previous token will also be read in from
             this file
-            secrets_file: full path of the client secrets file obtained from
-            Google Api Console
         """
         self.max_retries = max_retries
         self.scope: List[str] = scope
         self.token_file: Path = token_file
         self.session = None
-        self.token = None
-        self.secrets_file = secrets_file
-        self.port = port
+        self.creds: Credentials = None
 
         try:
-            with secrets_file.open("r") as stream:
-                all_json = load(stream)
-            secrets = all_json["installed"]
-            self.client_id = secrets["client_id"]
-            self.client_secret = secrets["client_secret"]
-            self.redirect_uri = secrets["redirect_uris"][0]
-            self.token_uri = secrets["token_uri"]
-            self.extra = {
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-            }
+            self.reload_creds()
 
-        except (JSONDecodeError, IOError):
-            print("missing or bad secrets file: {}".format(secrets_file))
+        except (Exception):
+            print("missing or bad token file: {}".format(token_file))
             exit(1)
 
-    def load_token(self) -> Optional[str]:
-        try:
-            with self.token_file.open("r") as stream:
-                token = load(stream)
-        except (JSONDecodeError, IOError):
-            return None
-        return token
-
-    def save_token(self, token: str):
+    def _save_creds(self, creds: Credentials):
         with self.token_file.open("w") as stream:
-            dump(token, stream)
+            stream.write(creds.to_json())
         self.token_file.chmod(0o600)
+
+    def reload_creds(self):
+        creds = Credentials.from_authorized_user_file(self.token_file, self.scope)
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            self._save_creds(creds)
+        self.load_creds()
+
+    def load_creds(self):
+        with self.token_file.open("r") as stream:
+            self.creds = Credentials.from_authorized_user_file(self.token_file, self.scope)
 
     def authorize(self):
         """Initiates OAuth2 authentication and authorization flow"""
-        token = self.load_token()
+        self.reload_creds()
 
-        if token:
-            self.session = OAuth2Session(
-                self.client_id,
-                token=token,
-                auto_refresh_url=self.token_uri,
-                auto_refresh_kwargs=self.extra,
-                token_updater=self.save_token,
-            )
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                self.secrets_file, scopes=self.scope
-            )
-            # localhost and bind to 0.0.0.0 always works even in a container.
-            flow.run_local_server(
-                open_browser=False, bind_addr="0.0.0.0", port=self.port
-            )
+        oauth2_token = {
+            "access_token": self.creds.token,
+            "refresh_token": self.creds.refresh_token,
+            "token_type": "Bearer",
+            "scope": self.scope,
+            "expires_at": self.creds.expiry.timestamp(),
+        }
 
-            self.session = flow.authorized_session()
-
-            # Mapping for backward compatibility
-            oauth2_token = {
-                "access_token": flow.credentials.token,
-                "refresh_token": flow.credentials.refresh_token,
-                "token_type": "Bearer",
-                "scope": flow.credentials.scopes,
-                "expires_at": flow.credentials.expiry.timestamp(),
-            }
-
-            self.save_token(oauth2_token)
+        self.session = OAuth2Session(
+            self.creds.client_id,
+            token=oauth2_token,
+            auto_refresh_url=self.creds.token_uri,
+            auto_refresh_kwargs= {
+                "client_id": self.creds.client_id,
+                "client_secret": self.creds.client_secret,
+            },
+            # token_updater=self.save_token,
+        )
 
         # set up the retry behaviour for the authorized session
         retries = Retry(
